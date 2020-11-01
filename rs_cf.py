@@ -207,6 +207,11 @@ param_grid = {'n_factors':[50,100,150], 'n_epochs':[20,30], 'lr_all':[0.005,0.01
 gs = GridSearchCV(SVDpp, param_grid, measures=['rmse'], cv=3, n_jobs=-1)
 gs.fit(data_train_cf)
 
+# best RMSE score
+print(gs.best_score['rmse'])
+# combination of parameters that gave the best RMSE score
+print(gs.best_params['rmse'])
+
 # %% [markdown]
 # Using the `test` dataset.
 
@@ -214,4 +219,5 @@ gs.fit(data_train_cf)
 svdpp_tuned = SVDpp(**gs.best_params['rmse'], random_state=42)
 cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True, n_jobs=-1)
 
-# %%
+# %% [markdown]
+# It can be noticed a small `overfitting` from our model.
