@@ -221,3 +221,7 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 
 # %% [markdown]
 # It can be noticed a small `overfitting` from our model.
+
+
+# Personal model
+# https://surprise.readthedocs.io/en/stable/building_custom_algo.html?highlight=fit#the-fit-method
