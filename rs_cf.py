@@ -25,7 +25,7 @@ def getDF(path):
     i += 1
   return pd.DataFrame.from_dict(df, orient='index')
 
-df = getDF('raw/reviews_Patio_Lawn_and_Garden_5.json.gz')
+df = getDF('raw/reviews_Cell_Phones_and_Accessories_5.json.gz')
 
 # %% [markdown]
 ## EDA ----
