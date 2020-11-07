@@ -219,7 +219,7 @@ class GroupAlgorithm(AlgoBase):
         for v, sim_uv in neighbors[:3]:
             print('user {0:} with sim {1:1.2f}'.format(v, sim_uv))
 
-        # ... Aaaaand return the baseline estimate anyway ;)
+        # Return the baseline estimate
         bsl = self.trainset.global_mean + self.bu[u] + self.bi[i]
         return bsl
 
@@ -280,12 +280,10 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
-#Construct the required TF-IDF matrix by fitting and transforming the data
-vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english', token_pattern=r'(?u)\b[A-Za-z]+\b')
-vectorizer = vectorizer.fit(data_train['reviewText'])
-
-# %%
 def cosine_distance(data):
+    #Construct the required TF-IDF matrix by fitting and transforming the data
+    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english', token_pattern=r'(?u)\b[A-Za-z]+\b')
+    vectorizer = vectorizer.fit(data)  
     tfidf_matrix = vectorizer.transform(data)
     # Calculate the distances
     return linear_kernel(tfidf_matrix, tfidf_matrix)
@@ -306,16 +304,12 @@ def get_recommendations_based_on_reviewText(asin_base, data, cosine_sim_item, nu
     # Return the top 2 most similar items
     return data['asin'].iloc[item_indices]
 
-def get_recommendation_content_model(reviewerID_base, data):
+def get_recommendation_content_model(reviewerID_base, data, cosine_sim_item):
     recommended_item_list = []
     recommended_item_list_already = []
 
-    # List of items reviewed by `reviewerID_base`
-    # Only items that the user likes
+    # List of items reviewed by `reviewerID_base` and only items that the user likes
     df_rating_filtered = data[(data["reviewerID"] == reviewerID_base) & (data['overall'] >= 4)]
-
-    # Calculate distances
-    cosine_sim_item = cosine_distance(data['reviewText'])
 
     # Looking for recommendations per items reviewed by the `reviewerID_base`
     for index, item in enumerate(df_rating_filtered['asin']):
@@ -331,9 +325,11 @@ def get_recommendation_content_model(reviewerID_base, data):
     return recommended_item_list, recommended_item_list_already
 
 # %%
-get_recommendation_content_model('A3497NDGXXH92J', data_train)
+# Calculate distances
+cosine_sim_item = cosine_distance(data_train['reviewText'])
+get_recommendation_content_model('A3497NDGXXH92J', data_train, cosine_sim_item)
 
-get_recommendations_based_on_reviewText('B0007ZJ1IK', data_train, cosine_distance(data_train['reviewText']))
+# get_recommendations_based_on_reviewText('B0007ZJ1IK', data_train, cosine_distance(data_train['reviewText']))
 
 # %%
 # TODO: how to do a test, do i have to calculate again tfidf?
