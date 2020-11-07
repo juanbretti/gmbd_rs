@@ -25,7 +25,8 @@ def getDF(path):
     i += 1
   return pd.DataFrame.from_dict(df, orient='index')
 
-df = getDF('raw/reviews_Cell_Phones_and_Accessories_5.json.gz')
+# df = getDF('raw/reviews_Cell_Phones_and_Accessories_5.json.gz')
+df = getDF('raw/reviews_Patio_Lawn_and_Garden_5.json.gz')
 
 # %% [markdown]
 ## EDA ----
@@ -141,6 +142,9 @@ iplot(fig)
 # %%
 import numpy as np
 from sklearn.model_selection import train_test_split
+
+# df2 = df.iloc[:30000, :]
+# df2 = df2.groupby('reviewerID').filter(lambda x: len(x) >= 5)
 data_train, data_test = train_test_split(df, test_size=0.20, random_state=42, stratify=df['reviewerID'])
 
 # %%
@@ -174,6 +178,51 @@ knn = KNNBaseline(sim_options=sim_options)
 
 results = cross_validate(knn, data_train_cf, measures=['RMSE'], cv=3, verbose=True, n_jobs=-1)
 
+### Personal model ----
+# https://surprise.readthedocs.io/en/stable/building_custom_algo.html?highlight=fit#the-fit-method
+# https://github.com/NicolasHug/Surprise/blob/fa7455880192383f01475162b4cbd310d91d29ca/examples/building_custom_algorithms/with_baselines_or_sim.py
+# https://github.com/NicolasHug/Surprise/blob/fa7455880192383f01475162b4cbd310d91d29ca/examples/building_custom_algorithms/with_baselines_or_sim.py
+
+# %%
+from surprise import AlgoBase
+from surprise import Dataset
+from surprise.model_selection import cross_validate
+from surprise import PredictionImpossible
+
+class GroupAlgorithm(AlgoBase):
+
+    def __init__(self, sim_options={}, bsl_options={}):
+
+        AlgoBase.__init__(self, sim_options=sim_options, bsl_options=bsl_options)
+
+    def fit(self, trainset):
+
+        AlgoBase.fit(self, trainset)
+
+        # Compute baselines and similarities
+        self.bu, self.bi = self.compute_baselines()
+        self.sim = self.compute_similarities()
+
+        return self
+
+    def estimate(self, u, i):
+
+        if not (self.trainset.knows_user(u) and self.trainset.knows_item(i)):
+            raise PredictionImpossible('User and/or item is unknown.')
+
+        # Compute similarities between u and v, where v describes all other users that have also rated item i.
+        neighbors = [(v, self.sim[u, v]) for (v, r) in self.trainset.ir[i]]
+        # Sort these neighbors by similarity
+        neighbors = sorted(neighbors, key=lambda x: x[1], reverse=True)
+
+        print('The 3 nearest neighbors of user', str(u), 'are:')
+        for v, sim_uv in neighbors[:3]:
+            print('user {0:} with sim {1:1.2f}'.format(v, sim_uv))
+
+        # ... Aaaaand return the baseline estimate anyway ;)
+        bsl = self.trainset.global_mean + self.bu[u] + self.bi[i]
+        return bsl
+
 # %% [markdown]
 ### Benchmarking ----
 # In the following exercise we are going to experiment with different algorithms to check which one of them offers the best results.
@@ -183,7 +232,7 @@ from surprise import SVD, BaselineOnly, NMF, SlopeOne, CoClustering, SVDpp, Norm
 
 benchmark = []
 # Iterate over all algorithms
-for algorithm in [SVD(), SVDpp(), SlopeOne(), NMF(), NormalPredictor(), KNNBaseline(), BaselineOnly(), CoClustering()]:
+for algorithm in [SVD(), SVDpp(), SlopeOne(), NMF(), NormalPredictor(), KNNBaseline(), BaselineOnly(), CoClustering(), GroupAlgorithm()]:
     
     print("Testing {}".format(algorithm))
     # Perform cross validation
@@ -222,9 +271,6 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 
 # %% [markdown]
 # It can be noticed a small `overfitting` from our model.
-
-### Personal model ----
-# https://surprise.readthedocs.io/en/stable/building_custom_algo.html?highlight=fit#the-fit-method
 
 # %% [markdown]
 ## Content-Based recommendation system using TFIDF with recommendations per user and metrics on results ----
@@ -285,8 +331,10 @@ def get_recommendation_content_model(reviewerID_base, data):
     return recommended_item_list, recommended_item_list_already
 
 # %%
-get_recommendation_content_model('A32JCI4AK2JTTG', data_train)
+get_recommendation_content_model('A3497NDGXXH92J', data_train)
+
+get_recommendations_based_on_reviewText('B0007ZJ1IK', data_train, cosine_distance(data_train['reviewText']))
 
 # %%
-
 # TODO: how to do a test, do i have to calculate again tfidf?
+# %%
