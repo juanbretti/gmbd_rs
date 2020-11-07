@@ -228,27 +228,26 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 
 # %% [markdown]
 ## Content-Based recommendation system using TFIDF with recommendations per user and metrics on results ----
+### Cosine similarity ----
 
 # %%
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
-vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english', token_pattern=r'(?u)\b[A-Za-z]+\b')
-tfidf_matrix = vectorizer.fit_transform(data_train['reviewText'])
-
-# %% [markdown]
-### Cosine similarity ----
-
-# %%
-from sklearn.metrics.pairwise import linear_kernel 
-
 #Construct the required TF-IDF matrix by fitting and transforming the data
-cosine_sim_item = linear_kernel(tfidf_matrix, tfidf_matrix)
+vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english', token_pattern=r'(?u)\b[A-Za-z]+\b')
+vectorizer = vectorizer.fit(data_train['reviewText'])
 
 # %%
-def get_recommendations_based_on_reviewText(asin_base, num_recommendations=3):
+def cosine_distance(data):
+    tfidf_matrix = vectorizer.transform(data)
+    # Calculate the distances
+    return linear_kernel(tfidf_matrix, tfidf_matrix)
+
+# Provides an `asin`, and this function will return a list of recommendations.
+def get_recommendations_based_on_reviewText(asin_base, data, cosine_sim_item, num_recommendations=3):
     # Get the index of the item that matches the title
-    idx_item = data_train.loc[data_train['asin'].isin([asin_base])]
+    idx_item = data.loc[data['asin'].isin([asin_base])]
     idx_item = idx_item.index
     # Get the pairwise similarity scores of all items with that item
     sim_scores_item = list(enumerate(cosine_sim_item[idx_item][0]))
@@ -259,29 +258,35 @@ def get_recommendations_based_on_reviewText(asin_base, num_recommendations=3):
     # Get the item indices
     item_indices = [i[0] for i in sim_scores_item]
     # Return the top 2 most similar items
-    return data_train['asin'].iloc[item_indices]
+    return data['asin'].iloc[item_indices]
 
-def get_recommendation_content_model(reviewerID_base):
+def get_recommendation_content_model(reviewerID_base, data):
     recommended_item_list = []
+    recommended_item_list_already = []
 
     # List of items reviewed by `reviewerID_base`
     # Only items that the user likes
-    df_rating_filtered = data_train[data_train["reviewerID"] == reviewerID_base]
-    df_rating_filtered = df_rating_filtered[df_rating_filtered['overall'] >= 4]  
+    df_rating_filtered = data[(data["reviewerID"] == reviewerID_base) & (data['overall'] >= 4)]
+
+    # Calculate distances
+    cosine_sim_item = cosine_distance(data['reviewText'])
 
     # Looking for recommendations per items reviewed by the `reviewerID_base`
     for index, item in enumerate(df_rating_filtered['asin']):
-        for key, item_recommended in get_recommendations_based_on_reviewText(item).iteritems():
+        for key, item_recommended in get_recommendations_based_on_reviewText(item, data, cosine_sim_item).iteritems():
             recommended_item_list.append(item_recommended)
 
-    # Removing already watched item from recommended list    
+    # Removing already reviewed item from recommended list    
     for item_title in recommended_item_list:
         if item_title in df_rating_filtered['asin']:
             recommended_item_list.remove(item_title)
+            recommended_item_list_already.append(item_title)
     
-    return recommended_item_list
+    return recommended_item_list, recommended_item_list_already
 
 # %%
-get_recommendation_content_model('A32JCI4AK2JTTG')
+get_recommendation_content_model('A32JCI4AK2JTTG', data_train)
 
 # %%
+
+# TODO: how to do a test, do i have to calculate again tfidf?
