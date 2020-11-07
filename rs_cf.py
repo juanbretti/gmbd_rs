@@ -1,12 +1,12 @@
 # %% [markdown]
-## Required Libraries
+## Required Libraries ----
 # For this particular exercise, we are using [Surprise](https://github.com/NicolasHug/Surprise).Surprise is a Python SciKit that comes with various recommender algorithms and similarity metrics to make it easy to build and analyze recommenders.<br>
 
 # %%
 import pandas as pd
 
 # %% [markdown]
-## Reading the data<br>
+## Reading the data ----
 # Source: http://jmcauley.ucsd.edu/data/amazon/
 
 # %%
@@ -28,7 +28,7 @@ def getDF(path):
 df = getDF('raw/reviews_Patio_Lawn_and_Garden_5.json.gz')
 
 # %% [markdown]
-# EDA ----
+## EDA ----
 # The following is an HTML report of the data.<br>
 # Also, printing a few lines of the dataset.
 
@@ -44,7 +44,7 @@ print('-Dataset examples-')
 print(df.iloc[::20000, :])
 
 # %% [markdown]
-### Plots
+### Plots ----
 
 #### Ratings distribution
 
@@ -79,13 +79,13 @@ iplot(fig)
 # %% [markdown]
 # We can see the distribution of the ratings is skewed to the high values. 
 
-# ## Numbers of ratings per item
+### Numbers of ratings per item ----
 # The following analysis checks how many ratings (interactions) each item has.<br>
 # The degree in which this long tail phenomena occurs will be related to aspects such as serendipity or overespecialization of the recommendations and the recommendation methodology that you should select.
 
 # %%
 
-# Number of ratings per movie
+# Number of ratings per item
 data = df.groupby('asin')['overall'].count()
 
 # Create trace
@@ -103,7 +103,7 @@ fig = go.Figure(data=[trace], layout=layout)
 iplot(fig)
 
 # %% [markdown]
-# ## Number of ratings per user
+### Number of ratings per user ----
 # Now it's time to see how many ratings we have per user.
 
 # %%
@@ -128,11 +128,12 @@ iplot(fig)
 # As expected similar distribution as per item.
 
 # %% [markdown]
-## Managing data with Surprise
+## Managing data with Surprise ----
 # It's now time to convert our datasets to the format required by the Surprise library.<br>
 # To load a data set from the above pandas data frame, we will use the *load_from_df()* method, we will also need a Reader object, and the rating_scale parameter must be specified. The data frame must have three columns, corresponding to the user ids, the item ids, and the ratings in this order. Each row thus corresponds to a given rating.<br>
-# <br>
-# Split the dataset
+
+# %% [markdown]
+## Split the dataset ----
 ### Data selection and preprocessing
 # Created a training dataset and a testing dataset from therein for the experiment. <br>
 # A recommended standard pre-processing strategy is that: for each user, randomly select 80% of ratings as the training ratings and use the remaining 20% ratings as testing ratings.
@@ -143,7 +144,7 @@ from sklearn.model_selection import train_test_split
 data_train, data_test = train_test_split(df, test_size=0.20, random_state=42, stratify=df['reviewerID'])
 
 # %%
-# Collaborative Filtering
+### Collaborative Filtering ----
 from surprise import Dataset
 from surprise import Reader
 
@@ -152,7 +153,7 @@ data_train_cf = Dataset.load_from_df(data_train[['reviewerID', 'asin', 'overall'
 data_test_cf = Dataset.load_from_df(data_test[['reviewerID', 'asin', 'overall']], reader)
 
 # %% [markdown]
-# # First Try: Neighbourhood-based Collaborative Filtering
+### Neighbourhood-based Collaborative Filtering ----
 # We are going to start by using one of the simplest recommendation methodologies (Neighbourhood-based CF). This technique is pretty simple and fast, but it provides accurate results for many scenarios.<br>
 # To specify the parameters of the execution, you simply have to configure the function by passing a dictionary as an argument to the recommender function. The dictionary should have the required keys, such as the following:
 # - **name** contains the similarity metric to use. Options are cosine, msd, pearson, or pearson_baseline. The default is msd.
@@ -174,7 +175,7 @@ knn = KNNBaseline(sim_options=sim_options)
 results = cross_validate(knn, data_train_cf, measures=['RMSE'], cv=3, verbose=True, n_jobs=-1)
 
 # %% [markdown]
-# #Second Try: Benchmarking
+### Benchmarking ----
 # In the following exercise we are going to experiment with different algorithms to check which one of them offers the best results.
 
 # %%
@@ -196,7 +197,7 @@ for algorithm in [SVD(), SVDpp(), SlopeOne(), NMF(), NormalPredictor(), KNNBasel
 pd.DataFrame(benchmark).set_index('Algorithm').sort_values('test_rmse')    
 
 # %% [markdown]
-# # Hyperparameter optimization
+### Hyperparameter optimization ----
 
 # %%
 # https://towardsdatascience.com/svd-where-model-tuning-goes-wrong-61c269402919
@@ -222,6 +223,65 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 # %% [markdown]
 # It can be noticed a small `overfitting` from our model.
 
-
-# Personal model
+### Personal model ----
 # https://surprise.readthedocs.io/en/stable/building_custom_algo.html?highlight=fit#the-fit-method
+
+# %% [markdown]
+## Content-Based recommendation system using TFIDF with recommendations per user and metrics on results ----
+
+# %%
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+
+vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=0, stop_words='english', token_pattern=r'(?u)\b[A-Za-z]+\b')
+tfidf_matrix = vectorizer.fit_transform(data_train['reviewText'])
+
+# %% [markdown]
+### Cosine similarity ----
+
+# %%
+from sklearn.metrics.pairwise import linear_kernel 
+
+#Construct the required TF-IDF matrix by fitting and transforming the data
+cosine_sim_item = linear_kernel(tfidf_matrix, tfidf_matrix)
+
+# %%
+def get_recommendations_based_on_reviewText(asin_base, num_recommendations=3):
+    # Get the index of the item that matches the title
+    idx_item = data_train.loc[data_train['asin'].isin([asin_base])]
+    idx_item = idx_item.index
+    # Get the pairwise similarity scores of all items with that item
+    sim_scores_item = list(enumerate(cosine_sim_item[idx_item][0]))
+    # Sort the items based on the similarity scores
+    sim_scores_item = sorted(sim_scores_item, key=lambda x: x[1], reverse=True)
+    # Get the scores of the 10 most similar items
+    sim_scores_item = sim_scores_item[1:num_recommendations]
+    # Get the item indices
+    item_indices = [i[0] for i in sim_scores_item]
+    # Return the top 2 most similar items
+    return data_train['asin'].iloc[item_indices]
+
+def get_recommendation_content_model(reviewerID_base):
+    recommended_item_list = []
+
+    # List of items reviewed by `reviewerID_base`
+    # Only items that the user likes
+    df_rating_filtered = data_train[data_train["reviewerID"] == reviewerID_base]
+    df_rating_filtered = df_rating_filtered[df_rating_filtered['overall'] >= 4]  
+
+    # Looking for recommendations per items reviewed by the `reviewerID_base`
+    for index, item in enumerate(df_rating_filtered['asin']):
+        for key, item_recommended in get_recommendations_based_on_reviewText(item).iteritems():
+            recommended_item_list.append(item_recommended)
+
+    # Removing already watched item from recommended list    
+    for item_title in recommended_item_list:
+        if item_title in df_rating_filtered['asin']:
+            recommended_item_list.remove(item_title)
+    
+    return recommended_item_list
+
+# %%
+get_recommendation_content_model('A32JCI4AK2JTTG')
+
+# %%
