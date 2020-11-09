@@ -148,7 +148,7 @@ from sklearn.model_selection import train_test_split
 data_train, data_test = train_test_split(df, test_size=0.20, random_state=42, stratify=df['reviewerID'])
 
 # %%
-### Collaborative Filtering ----
+## Collaborative Filtering ----
 from surprise import Dataset
 from surprise import Reader
 
@@ -267,6 +267,13 @@ print(gs.best_params['rmse'])
 
 # %%
 svdpp_tuned = SVDpp(**gs.best_params['rmse'], random_state=42)
+
+# %%
+#### Train ----
+cross_validate(svdpp_tuned, data_train_cf, measures=['RMSE'], cv=3, verbose=True, n_jobs=-1)
+
+# %%
+#### Test ----
 cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True, n_jobs=-1)
 
 # %% [markdown]
@@ -287,6 +294,12 @@ def cosine_distance(data):
     tfidf_matrix = vectorizer.transform(data)
     # Calculate the distances
     return linear_kernel(tfidf_matrix, tfidf_matrix)
+
+
+# %% [markdown]
+### Get recommendations ----
+
+# %%
 
 # Provides an `asin`, and this function will return a list of recommendations.
 def get_recommendations_based_on_reviewText(asin_base, data, cosine_sim_item, num_recommendations=3):
@@ -325,12 +338,37 @@ def get_recommendation_content_model(reviewerID_base, data, cosine_sim_item):
     return recommended_item_list, recommended_item_list_already
 
 # %%
-# Calculate distances
+### Apply model ----
+#### Train ----
 cosine_sim_item = cosine_distance(data_train['reviewText'])
 get_recommendation_content_model('A3497NDGXXH92J', data_train, cosine_sim_item)
 
-# get_recommendations_based_on_reviewText('B0007ZJ1IK', data_train, cosine_distance(data_train['reviewText']))
+# %%
+#### Train + Test ----
+data = data_train.append(data_test)
+cosine_sim_item = cosine_distance(data['reviewText'])
+get_recommendation_content_model('A6HOWM08PLFZ5', data, cosine_sim_item)
+
+# %% [markdown]
+## Hybrid model ----
 
 # %%
-# TODO: how to do a test, do i have to calculate again tfidf?
+def hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned):
+    recommended_items_by_content_model = get_recommendation_content_model(reviewerID_base, data, cosine_sim_item)[0]
+    rating_=[]
+    for item in recommended_items_by_content_model:
+        predict = svdpp_tuned.predict(reviewerID_base, item)
+        rating_.append([reviewerID_base, item, predict.est])
+    rating_ = pd.DataFrame(rating_, columns=['reviewerID', 'item', 'predict'])
+    rating_ = rating_.sort_values(by='predict', ascending=False)
+    return rating_
+
+# %%
+data = data_train.append(data_test)
+cosine_sim_item = cosine_distance(data['reviewText'])
+
+recommendation_ = pd.DataFrame()
+for reviewerID_base in data['reviewerID'].unique()[0:4]:
+    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned)
+    recommendation_ = recommendation_.append(case)
 # %%
