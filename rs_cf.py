@@ -351,6 +351,7 @@ get_recommendation_content_model('A6HOWM08PLFZ5', data, cosine_sim_item)
 
 # %% [markdown]
 ## Hybrid model ----
+### Function definition ----
 
 # %%
 def hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned):
@@ -363,12 +364,26 @@ def hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, sv
     rating_ = rating_.sort_values(by='predict', ascending=False)
     return rating_
 
+# %% [markdown]
+### Apply to all the reviewer ----
+
 # %%
-data = data_train.append(data_test)
+first_reviewers = 4
+top_n = 5
+
+# SVD++ model fitted to the trainset
+# https://surprise.readthedocs.io/en/stable/getting_started.html#train-on-a-whole-trainset-and-the-predict-method
+trainset = data_train_cf.build_full_trainset()
+svdpp_tuned.fit(trainset)
+
+# Distance matrix for the whole dataset
+data = data_train.append(data_test)  # Is the same as calling df
 cosine_sim_item = cosine_distance(data['reviewText'])
 
 recommendation_ = pd.DataFrame()
-for reviewerID_base in data['reviewerID'].unique()[0:4]:
-    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned)
+for reviewerID_base in data['reviewerID'].unique()[:first_reviewers]:
+    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned).head(top_n)
     recommendation_ = recommendation_.append(case)
+# %%
+recommendation_
 # %%
