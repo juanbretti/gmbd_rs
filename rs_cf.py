@@ -181,7 +181,6 @@ results = cross_validate(knn, data_train_cf, measures=['RMSE'], cv=3, verbose=Tr
 ### Personal model ----
 # https://surprise.readthedocs.io/en/stable/building_custom_algo.html?highlight=fit#the-fit-method
 # https://github.com/NicolasHug/Surprise/blob/fa7455880192383f01475162b4cbd310d91d29ca/examples/building_custom_algorithms/with_baselines_or_sim.py
-# https://github.com/NicolasHug/Surprise/blob/fa7455880192383f01475162b4cbd310d91d29ca/examples/building_custom_algorithms/with_baselines_or_sim.py
 
 # %%
 from surprise import AlgoBase
@@ -281,6 +280,63 @@ cross_validate(svdpp_tuned, data_test_cf, measures=['RMSE'], cv=3, verbose=True,
 
 # %% [markdown]
 ## Content-Based recommendation system using TFIDF with recommendations per user and metrics on results ----
+### Exploratory Analysis ----
+
+# To verify whether the preprocessing happened correctly, we’ll make a word cloud using the wordcloud package to get a visual representation of most common words. It is key to understanding the data and ensuring we are on the right track, and if any more preprocessing is necessary before training the model.
+
+# %%
+# https://towardsdatascience.com/end-to-end-topic-modeling-in-python-latent-dirichlet-allocation-lda-35ce4ed6b3e0
+
+# Import the wordcloud library
+from wordcloud import WordCloud
+# Join the different processed titles together.
+long_string = ','.join(list(df['reviewText'].values))
+# Create a WordCloud object
+wordcloud = WordCloud(background_color="white", max_words=5000, contour_width=3, contour_color='steelblue')
+# Generate a word cloud
+wordcloud.generate(long_string)
+# Visualize the word cloud
+wordcloud.to_image()
+
+
+# %%
+# Load the library with the CountVectorizer method
+from sklearn.feature_extraction.text import CountVectorizer
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style('whitegrid')
+
+# Helper function
+def plot_10_most_common_words(count_data, count_vectorizer):
+    import matplotlib.pyplot as plt
+    words = count_vectorizer.get_feature_names()
+    total_counts = np.zeros(len(words))
+    for t in count_data:
+        total_counts+=t.toarray()[0]
+    
+    count_dict = (zip(words, total_counts))
+    count_dict = sorted(count_dict, key=lambda x:x[1], reverse=True)[0:10]
+    words = [w[0] for w in count_dict]
+    counts = [w[1] for w in count_dict]
+    x_pos = np.arange(len(words)) 
+    
+    plt.figure(2, figsize=(15, 15/1.6180))
+    plt.subplot(title='10 most common words')
+    sns.set_context("notebook", font_scale=1.25, rc={"lines.linewidth": 2.5})
+    sns.barplot(x_pos, counts, palette='husl')
+    plt.xticks(x_pos, words, rotation=90) 
+    plt.xlabel('words')
+    plt.ylabel('counts')
+    plt.show()
+# Initialise the count vectorizer with the English stop words
+count_vectorizer = CountVectorizer(stop_words='english')
+# Fit and transform the processed titles
+count_data = count_vectorizer.fit_transform(df['reviewText'])
+# Visualise the 10 most common words
+plot_10_most_common_words(count_data, count_vectorizer)
+
+# %% [markdown]
 ### Cosine similarity ----
 
 # %%
@@ -294,7 +350,6 @@ def cosine_distance(data):
     tfidf_matrix = vectorizer.transform(data)
     # Calculate the distances
     return linear_kernel(tfidf_matrix, tfidf_matrix)
-
 
 # %% [markdown]
 ### Get recommendations ----
@@ -386,4 +441,22 @@ for reviewerID_base in data['reviewerID'].unique()[:first_reviewers]:
     recommendation_ = recommendation_.append(case)
 # %%
 recommendation_
+
+# %% [markdown]
+### Performance ----
+
+# %%
+match = 0
+
+for user_id in data['reviewerID'].unique():
+    recom = recommendations_for_all[recommendations_for_all['reviewerID']==user_id]['asin']
+    test = ratings_test[ratings_test['reviewerID']==user_id]['asin']
+
+    match = recom.isin(test).sum()
+
+match
+
+# %%
+f'My accuracy is {match/recommendations_for_all.shape[0]}.'
+
 # %%
