@@ -148,6 +148,9 @@ from sklearn.model_selection import train_test_split
 # df2 = df2.groupby('reviewerID|asin').filter(lambda x: len(x) >= 2)
 # data_train, data_test = train_test_split(df2, test_size=0.20, random_state=42, stratify=df2['reviewerID'])
 data_train, data_test = train_test_split(df, test_size=0.20, random_state=42, stratify=df['reviewerID'])
+# Clear index
+data_train.reset_index(drop=True, inplace=True)
+data_test.reset_index(drop=True, inplace=True)
 
 # %%
 ## Collaborative Filtering ----
@@ -374,19 +377,17 @@ def get_recommendations_based_on_reviewText(asin_base, data_distance, data_dista
     # Return the top 2 most similar items
     return data_distance['asin'].iloc[item_indices]
 
-def get_recommendation_content_model(reviewerID_base, data_review, data_distance, num_recommendations=3):
+def get_recommendation_content_model(reviewerID_base, data_review, data_distance, data_distance_cosine, num_recommendations=3):
     recommended_item_list = []
     recommended_item_list_already = []
 
     # List of items reviewed by `reviewerID_base` and only items that the user likes
     data_review_filtered = data_review[(data_review["reviewerID"] == reviewerID_base) & (data_review['overall'] >= 4)]
 
-    # Distance matrix
-    data_distance_cosine = cosine_distance(data_distance['reviewText'])
-
     # Looking for recommendations per items reviewed by the `reviewerID_base`
     for index, item in enumerate(data_review_filtered['asin']):
         for key, item_recommended in get_recommendations_based_on_reviewText(item, data_distance, data_distance_cosine, num_recommendations).iteritems():
+            # print(item_recommended)
             recommended_item_list.append(item_recommended)
 
     # Removing already reviewed item from recommended list    
@@ -400,11 +401,67 @@ def get_recommendation_content_model(reviewerID_base, data_review, data_distance
 # %%
 ### Apply model ----
 #### Train ----
-get_recommendation_content_model('A3497NDGXXH92J', data_train, data_train, 3)
+data_distance_cosine = cosine_distance(data_train['reviewText'])
+get_recommendation_content_model('A3497NDGXXH92J', data_train, data_train, data_distance_cosine, 3)
 
 # %%
 #### Test ----
-get_recommendation_content_model('A6HOWM08PLFZ5', data_test, data_train, 3)
+data_distance_cosine = cosine_distance(data_train['reviewText'])
+get_recommendation_content_model('A2HTPS0JV3Q8ZD', data_test, data_train, data_distance_cosine, 3)  # Tiene problemas
+
+
+# %%
+get_recommendations_based_on_reviewText('B00E1CS5JQ', data_train, data_distance_cosine, 3)
+
+# %%
+
+
+
+
+
+# %%
+
+
+data_review_filtered = data_test[(data_test["reviewerID"] == reviewerID_base) & (data_test['overall'] >= 4)]
+
+data_review_filtered['asin']
+
+data_review_filtered = data_test[(data_test["reviewerID"] == reviewerID_base) & (data_test['overall'] >= 4)]...
+3129     B000FLV9H2
+6727     B002ITKYRK
+1892     B000A0VOD2
+12242    B00E1CS5JQ  >> Problema
+6018     B001H1JKN4
+3373     B000H6JJEA
+12122    B00DRBBRQU  >> Problema
+
+
+# %%
+
+asin_base = 'B00E1CS5JQ'
+data_distance = data_train.reset_index(drop=True)
+num_recommendations =3
+
+# Get the index of the item that matches the title
+idx_item = data_distance.loc[data_distance['asin'].isin([asin_base])]
+idx_item = idx_item.index
+# Get the pairwise similarity scores of all items with that item
+sim_scores_item = list(enumerate(data_distance_cosine[idx_item][0]))
+# Sort the items based on the similarity scores
+sim_scores_item = sorted(sim_scores_item, key=lambda x: x[1], reverse=True)
+# Get the scores of the XX most similar items
+sim_scores_item = sim_scores_item[1:num_recommendations]
+# Get the item indices
+item_indices = [i[0] for i in sim_scores_item]
+# Return the top 2 most similar items
+data_distance['asin'].iloc[item_indices]
+
+# data_distance.shape
+# data_distance_cosine.shape
+
+
+
+
 
 # %%
 #### Train + Test ----
@@ -445,7 +502,7 @@ for reviewerID_base in data['reviewerID'].unique()[:first_reviewers]:
 # %%
 recommendation_
 
-
+# %%
 
 
 
