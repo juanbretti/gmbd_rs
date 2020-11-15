@@ -456,7 +456,7 @@ for reviewerID_base in data_test['reviewerID'].unique()[:first_reviewers]:
     recommendations_collector = recommendations_collector.append(recommendations_.head(top_n))
     performance_collector.append(performance_)
 # %%
-recommendations_collector
+recommendations_collector.head(20)
 
 # %%
 print(f'RMSE of the hybrid monolithic recommender system is {np.mean(performance_collector).round(2)}.')
