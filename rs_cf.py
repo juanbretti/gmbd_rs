@@ -25,7 +25,6 @@ def getDF(path):
     i += 1
   return pd.DataFrame.from_dict(df, orient='index')
 
-# df = getDF('raw/reviews_Cell_Phones_and_Accessories_5.json.gz')
 df = getDF('raw/reviews_Patio_Lawn_and_Garden_5.json.gz')
 
 # %% [markdown]
@@ -360,54 +359,59 @@ def cosine_distance(data):
 ### Get recommendations ----
 
 # %%
+from sklearn.metrics import mean_squared_error
 
-# Provides an `asin`, and this function will return a list of recommendations.
-def get_recommendations_based_on_reviewText(asin_base, data_distance, data_distance_cosine, num_recommendations):
-    # Get the index of the item that matches the title
-    idx_item = data_distance.loc[data_distance['asin'].isin([asin_base])]
-    idx_item = idx_item.index
-    # Get the pairwise similarity scores of all items with that item
-    sim_scores_item = list(enumerate(data_distance_cosine[idx_item][0]))
-    # Sort the items based on the similarity scores
-    sim_scores_item = sorted(sim_scores_item, key=lambda x: x[1], reverse=True)
-    # Get the scores of the XX most similar items
-    sim_scores_item = sim_scores_item[1:num_recommendations]
-    # Get the item indices
-    item_indices = [i[0] for i in sim_scores_item]
-    # Return the top 2 most similar items
-    return data_distance['asin'].iloc[item_indices]
+def get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test=None):
+    ## Train
 
-def get_recommendation_content_model(reviewerID_base, data_review, data_distance, data_distance_cosine, num_recommendations=3):
-    recommended_item_list = []
-    recommended_item_list_already = []
+    # Parameter definition
+    recomm_threshold = [0, 0.02/6, 0.02/4, 0.02/2, 0.02, 1] # Needs optimization, values in ascending order [0, 1]
 
-    # List of items reviewed by `reviewerID_base` and only items that the user likes
-    data_review_filtered = data_review[(data_review["reviewerID"] == reviewerID_base) & (data_review['overall'] >= 4)]
+    # Data from the current reviewer
+    data_distance_reviewer = data_train[data_train['reviewerID']==reviewerID_base]
+    # The `asin` that `reviewerID_base` likes the most
+    asin_base = data_distance_reviewer[data_distance_reviewer['overall']==data_distance_reviewer['overall'].max()]['asin']
 
-    # Looking for recommendations per items reviewed by the `reviewerID_base`
-    for index, item in enumerate(data_review_filtered['asin']):
-        for key, item_recommended in get_recommendations_based_on_reviewText(item, data_distance, data_distance_cosine, num_recommendations).iteritems():
-            # print(item_recommended)
-            recommended_item_list.append(item_recommended)
+    # All the reviews for the `asin` required
+    idx_item = data_train.loc[data_train['asin'].isin(asin_base)].index
+    # Convert to `pd.DataFrame`
+    cb_distance = pd.DataFrame(data_train_cosine[idx_item], columns=data_train['asin'])
+    # Melt the DataFrame, group by `asin`, calculate mean distance, and sort
+    cb_distance = pd.melt(cb_distance).groupby('asin', as_index=False).agg('mean').sort_values(by='value', ascending=False)
+    # Apply rating
+    cb_distance['Rating'] = pd.cut(x=cb_distance['value'], bins=recomm_threshold, labels=[1,2,3,4,5])
 
-    # Removing already reviewed item from recommended list    
-    for item_title in recommended_item_list:
-        if item_title in data_review_filtered['asin']:
-            recommended_item_list.remove(item_title)
-            recommended_item_list_already.append(item_title)
-    
-    return recommended_item_list, recommended_item_list_already
+    if data_test is not None:
+        ## Test
+        data_test_reviewer = data_test[data_test['reviewerID']==reviewerID_base]
+        cb_merged = data_test_reviewer.merge(cb_distance, on='asin', how='left')
+        # RMSE
+        RMSE = mean_squared_error(cb_merged['overall'], cb_merged['Rating'], squared=False)
+    else:
+        RMSE = None
+
+    return cb_distance, RMSE
 
 # %%
-### Apply model ----
-data_distance_cosine = cosine_distance(data_train['reviewText'])
+# Testing with one `reviewerID`
+data_train_cosine = cosine_distance(data_train['reviewText'])
 
-#### Train ----
-get_recommendation_content_model('A3497NDGXXH92J', data_train, data_train, data_distance_cosine, 3)
+reviewerID_base = 'A2VYA302TO2K1C'
+recommendations = get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test)
 
 # %%
-#### Test ----
-get_recommendation_content_model('A2HTPS0JV3Q8ZD', data_test, data_train, data_distance_cosine, 3)  # Tiene problemas
+### Performance benchmark ----
+
+# Limited to the first `100`, for speeding considerations
+first_reviewers = 100
+
+recommendation_ = []
+for reviewerID_base in data_test['reviewerID'].unique()[:first_reviewers]:
+    case = get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test)
+    case = case[1]
+    recommendation_.append(case)
+
+print(f'RMSE of the content-based recommender system is {np.mean(recommendation_).round(2)}.')
 
 # %% [markdown]
 ## Hybrid model ----
@@ -426,6 +430,7 @@ def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_review, data_distanc
 
 # %% [markdown]
 ### Apply to all the reviewer ----
+## Test ----
 
 # %%
 first_reviewers = 10
@@ -445,19 +450,9 @@ recommendation_
 
 # %%
 
-
-
-
-
-
-
-
-
-
-
-
 # %% [markdown]
 ### Performance ----
+# TODO: Implement performance measurement
 
 # %%
 match = 0

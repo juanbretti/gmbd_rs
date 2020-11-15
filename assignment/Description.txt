@@ -1,0 +1,19 @@
+7:18 AM 10/23/2020
+
+UPLOAD ASSIGNMENT: GROUP ASSIGNMENT
+ 
+   ASSIGNMENT INFORMATION
+Due Date
+Friday, November 20, 2020
+11:59 PM
+Points Possible
+10
+In this first an unique Group Assignment you are going to create a real-world recommendation system. To that end, you are going to work with a real Amazon Dataset and, by putting in practice all the ideas explained during this course, you should create a recommender system to solve the recommendation task.
+
+For more details, please carefully review the guidelines of the assignment. If you have any doubt, please let me know.
+
+
+Assignment Proposal.pdf
+   ASSIGNMENT SUBMISSION
+Text SubmissionWrite Submission
+Attach Files

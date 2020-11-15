@@ -1,0 +1,9 @@
+Original
+http://jmcauley.ucsd.edu/data/amazon/
+
+New links
+https://nijianmo.github.io/amazon/index.html
+http://deepyeti.ucsd.edu/jianmo/amazon/index.html
+
+Ideas
+https://github.com/vivdalal/movie-recommender-system/blob/master/movie_recommendation_system.ipynb
