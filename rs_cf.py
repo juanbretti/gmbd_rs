@@ -143,8 +143,10 @@ iplot(fig)
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-# df2 = df.iloc[:30000, :]
-# df2 = df2.groupby('reviewerID').filter(lambda x: len(x) >= 5)
+# df2 = df
+# df2['reviewerID|asin'] = df[['reviewerID', 'asin']].agg('|'.join, axis=1)
+# df2 = df2.groupby('reviewerID|asin').filter(lambda x: len(x) >= 2)
+# data_train, data_test = train_test_split(df2, test_size=0.20, random_state=42, stratify=df2['reviewerID'])
 data_train, data_test = train_test_split(df, test_size=0.20, random_state=42, stratify=df['reviewerID'])
 
 # %%
@@ -357,36 +359,39 @@ def cosine_distance(data):
 # %%
 
 # Provides an `asin`, and this function will return a list of recommendations.
-def get_recommendations_based_on_reviewText(asin_base, data, cosine_sim_item, num_recommendations=3):
+def get_recommendations_based_on_reviewText(asin_base, data_distance, data_distance_cosine, num_recommendations):
     # Get the index of the item that matches the title
-    idx_item = data.loc[data['asin'].isin([asin_base])]
+    idx_item = data_distance.loc[data_distance['asin'].isin([asin_base])]
     idx_item = idx_item.index
     # Get the pairwise similarity scores of all items with that item
-    sim_scores_item = list(enumerate(cosine_sim_item[idx_item][0]))
+    sim_scores_item = list(enumerate(data_distance_cosine[idx_item][0]))
     # Sort the items based on the similarity scores
     sim_scores_item = sorted(sim_scores_item, key=lambda x: x[1], reverse=True)
-    # Get the scores of the 10 most similar items
+    # Get the scores of the XX most similar items
     sim_scores_item = sim_scores_item[1:num_recommendations]
     # Get the item indices
     item_indices = [i[0] for i in sim_scores_item]
     # Return the top 2 most similar items
-    return data['asin'].iloc[item_indices]
+    return data_distance['asin'].iloc[item_indices]
 
-def get_recommendation_content_model(reviewerID_base, data, cosine_sim_item):
+def get_recommendation_content_model(reviewerID_base, data_review, data_distance, num_recommendations=3):
     recommended_item_list = []
     recommended_item_list_already = []
 
     # List of items reviewed by `reviewerID_base` and only items that the user likes
-    df_rating_filtered = data[(data["reviewerID"] == reviewerID_base) & (data['overall'] >= 4)]
+    data_review_filtered = data_review[(data_review["reviewerID"] == reviewerID_base) & (data_review['overall'] >= 4)]
+
+    # Distance matrix
+    data_distance_cosine = cosine_distance(data_distance['reviewText'])
 
     # Looking for recommendations per items reviewed by the `reviewerID_base`
-    for index, item in enumerate(df_rating_filtered['asin']):
-        for key, item_recommended in get_recommendations_based_on_reviewText(item, data, cosine_sim_item).iteritems():
+    for index, item in enumerate(data_review_filtered['asin']):
+        for key, item_recommended in get_recommendations_based_on_reviewText(item, data_distance, data_distance_cosine, num_recommendations).iteritems():
             recommended_item_list.append(item_recommended)
 
     # Removing already reviewed item from recommended list    
     for item_title in recommended_item_list:
-        if item_title in df_rating_filtered['asin']:
+        if item_title in data_review_filtered['asin']:
             recommended_item_list.remove(item_title)
             recommended_item_list_already.append(item_title)
     
@@ -395,22 +400,24 @@ def get_recommendation_content_model(reviewerID_base, data, cosine_sim_item):
 # %%
 ### Apply model ----
 #### Train ----
-cosine_sim_item = cosine_distance(data_train['reviewText'])
-get_recommendation_content_model('A3497NDGXXH92J', data_train, cosine_sim_item)
+get_recommendation_content_model('A3497NDGXXH92J', data_train, data_train, 3)
+
+# %%
+#### Test ----
+get_recommendation_content_model('A6HOWM08PLFZ5', data_test, data_train, 3)
 
 # %%
 #### Train + Test ----
 data = data_train.append(data_test)
-cosine_sim_item = cosine_distance(data['reviewText'])
-get_recommendation_content_model('A6HOWM08PLFZ5', data, cosine_sim_item)
+get_recommendation_content_model('A6HOWM08PLFZ5', data, data, 3)
 
 # %% [markdown]
 ## Hybrid model ----
 ### Function definition ----
 
 # %%
-def hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned):
-    recommended_items_by_content_model = get_recommendation_content_model(reviewerID_base, data, cosine_sim_item)[0]
+def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_review, data_distance, svdpp_tuned):
+    recommended_items_by_content_model = get_recommendation_content_model(reviewerID_base, data_review, data_distance)[0]
     rating_=[]
     for item in recommended_items_by_content_model:
         predict = svdpp_tuned.predict(reviewerID_base, item)
@@ -431,16 +438,25 @@ top_n = 5
 trainset = data_train_cf.build_full_trainset()
 svdpp_tuned.fit(trainset)
 
-# Distance matrix for the whole dataset
-data = data_train.append(data_test)  # Is the same as calling df
-cosine_sim_item = cosine_distance(data['reviewText'])
-
 recommendation_ = pd.DataFrame()
 for reviewerID_base in data['reviewerID'].unique()[:first_reviewers]:
-    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data, cosine_sim_item, svdpp_tuned).head(top_n)
+    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data_test, data_train, svdpp_tuned).head(top_n)
     recommendation_ = recommendation_.append(case)
 # %%
 recommendation_
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # %% [markdown]
 ### Performance ----
