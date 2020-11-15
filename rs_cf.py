@@ -363,9 +363,8 @@ from sklearn.metrics import mean_squared_error
 
 def get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test=None):
     ## Train
-
     # Parameter definition
-    recomm_threshold = [0, 0.02/6, 0.02/4, 0.02/2, 0.02, 1] # Needs optimization, values in ascending order [0, 1]
+    recomm_threshold = [0, 0.02/32, 0.02/16, 0.02/4, 0.02, 1] # Needs optimization, values in ascending order [0, 1]
 
     # Data from the current reviewer
     data_distance_reviewer = data_train[data_train['reviewerID']==reviewerID_base]
@@ -381,8 +380,8 @@ def get_recommendation_content_model(reviewerID_base, data_train, data_train_cos
     # Apply rating
     cb_distance['Rating'] = pd.cut(x=cb_distance['value'], bins=recomm_threshold, labels=[1,2,3,4,5])
 
+    ## Test
     if data_test is not None:
-        ## Test
         data_test_reviewer = data_test[data_test['reviewerID']==reviewerID_base]
         cb_merged = data_test_reviewer.merge(cb_distance, on='asin', how='left')
         # RMSE
@@ -392,8 +391,10 @@ def get_recommendation_content_model(reviewerID_base, data_train, data_train_cos
 
     return cb_distance, RMSE
 
+# %% [markdown]
+#### Testing with one `reviewerID` ----
+
 # %%
-# Testing with one `reviewerID`
 data_train_cosine = cosine_distance(data_train['reviewText'])
 
 reviewerID_base = 'A2VYA302TO2K1C'
@@ -403,30 +404,41 @@ recommendations = get_recommendation_content_model(reviewerID_base, data_train, 
 ### Performance benchmark ----
 
 # Limited to the first `100`, for speeding considerations
-first_reviewers = 100
+first_reviewers = 10
 
-recommendation_ = []
+performance_ = []
 for reviewerID_base in data_test['reviewerID'].unique()[:first_reviewers]:
-    case = get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test)
-    case = case[1]
-    recommendation_.append(case)
+    recommended_by_cb = get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test)
+    recommended_by_cb = recommended_by_cb[1]
+    performance_.append(recommended_by_cb)
 
-print(f'RMSE of the content-based recommender system is {np.mean(recommendation_).round(2)}.')
+print(f'RMSE of the content-based recommender system is {np.mean(performance_).round(2)}.')
 
 # %% [markdown]
 ## Hybrid model ----
 ### Function definition ----
 
 # %%
-def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_review, data_distance, data_distance_cosine, svdpp_tuned):
-    recommended_items_by_content_model = get_recommendation_content_model(reviewerID_base, data_review, data_distance, data_distance_cosine)[0]
-    rating_=[]
-    for item in recommended_items_by_content_model:
-        predict = svdpp_tuned.predict(reviewerID_base, item)
-        rating_.append([reviewerID_base, item, predict.est])
-    rating_ = pd.DataFrame(rating_, columns=['reviewerID', 'item', 'predict'])
-    rating_ = rating_.sort_values(by='predict', ascending=False)
-    return rating_
+def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_train, data_train_cosine, data_test, svdpp_tuned):
+    recommendations_ = []
+    recommended_by_cb = get_recommendation_content_model(reviewerID_base, data_train, data_train_cosine, data_test)
+
+    for _, row in recommended_by_cb[0].iterrows():
+        predict = svdpp_tuned.predict(reviewerID_base, row['asin'])
+        recommendations_.append([reviewerID_base, row['asin'], predict.est])
+    recommendations_ = pd.DataFrame(recommendations_, columns=['reviewerID', 'asin', 'predict'])
+    recommendations_ = recommendations_.sort_values(by='predict', ascending=False)
+    return recommendations_, recommended_by_cb[1]
+
+
+# %%
+# SVD++ model fitted to the trainset
+# https://surprise.readthedocs.io/en/stable/getting_started.html#train-on-a-whole-trainset-and-the-predict-method
+trainset = data_train_cf.build_full_trainset()
+svdpp_tuned.fit(trainset)
+
+reviewerID_base='A6HOWM08PLFZ5'
+hybrid_content_svdpp_per_reviewer(reviewerID_base, data_train, data_train_cosine, data_test, svdpp_tuned)
 
 # %% [markdown]
 ### Apply to all the reviewer ----
@@ -436,36 +448,17 @@ def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_review, data_distanc
 first_reviewers = 10
 top_n = 5
 
-# SVD++ model fitted to the trainset
-# https://surprise.readthedocs.io/en/stable/getting_started.html#train-on-a-whole-trainset-and-the-predict-method
-trainset = data_train_cf.build_full_trainset()
-svdpp_tuned.fit(trainset)
+recommendations_collector = pd.DataFrame()
+performance_collector = []
 
-recommendation_ = pd.DataFrame()
 for reviewerID_base in data_test['reviewerID'].unique()[:first_reviewers]:
-    case = hybrid_content_svdpp_per_reviewer(reviewerID_base, data_test, data_train, data_distance_cosine, svdpp_tuned).head(top_n)
-    recommendation_ = recommendation_.append(case)
+    recommendations_, performance_ = hybrid_content_svdpp_per_reviewer(reviewerID_base, data_train, data_train_cosine, data_test, svdpp_tuned)
+    recommendations_collector = recommendations_collector.append(recommendations_.head(top_n))
+    performance_collector.append(performance_)
 # %%
-recommendation_
-
-# %%
-
-# %% [markdown]
-### Performance ----
-# TODO: Implement performance measurement
+recommendations_collector
 
 # %%
-match = 0
-
-for user_id in data['reviewerID'].unique():
-    recom = recommendations_for_all[recommendations_for_all['reviewerID']==user_id]['asin']
-    test = ratings_test[ratings_test['reviewerID']==user_id]['asin']
-
-    match = recom.isin(test).sum()
-
-match
-
-# %%
-f'My accuracy is {match/recommendations_for_all.shape[0]}.'
+print(f'RMSE of the hybrid monolithic recommender system is {np.mean(performance_collector).round(2)}.')
 
 # %%
