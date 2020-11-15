@@ -400,8 +400,9 @@ def get_recommendation_content_model(reviewerID_base, data_review, data_distance
 
 # %%
 ### Apply model ----
-#### Train ----
 data_distance_cosine = cosine_distance(data_train['reviewText'])
+
+#### Train ----
 get_recommendation_content_model('A3497NDGXXH92J', data_train, data_train, data_distance_cosine, 3)
 
 # %%
@@ -427,7 +428,7 @@ def hybrid_content_svdpp_per_reviewer(reviewerID_base, data_review, data_distanc
 ### Apply to all the reviewer ----
 
 # %%
-first_reviewers = 6
+first_reviewers = 10
 top_n = 5
 
 # SVD++ model fitted to the trainset
