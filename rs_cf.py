@@ -413,10 +413,10 @@ def get_recommendation_content_model(reviewerID_base, data_train, data_train_cos
     """Calculates a `DataFrame` with the distance from the `reviewerID_base` and the `data_train`.
 
     Args:
-        reviewerID_base ([string]): [description]
-        data_train ([DataFrame]): [description]
-        data_train_cosine ([matrix]): [description]
-        data_test ([DataFrame], optional): [description]. Defaults to None.
+        reviewerID_base ([string]): Customer ID from Amazon
+        data_train ([DataFrame]): DataFrame in the original format, for the training.
+        data_train_cosine ([matrix]): Matrix with the distances between reviews
+        data_test ([DataFrame], optional): DataFrame in the original format, for the test set. This will not be used for training. Defaults to None.
 
     Returns:
         [DataFrame, float]: The original dataframe, with the addition of the `predicted rating`. Also the RMSE.
