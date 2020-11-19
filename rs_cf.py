@@ -300,7 +300,6 @@ pd.DataFrame(benchmark).set_index('Algorithm').sort_values('test_rmse')
 # %% [markdown]
 ### Hyperparameter optimization ----
 # We had selected as best performant the `svd++` algorithms. It must be considered that the selected method has the highest CPU time, but we are using a small dataset to overcame the limitations. Also we are using a 16 cores CPU to speed up the training and following processes.<br>
-# As reference, the following codes were used for the development of our group algorithm.
 
 # %%
 # https://towardsdatascience.com/svd-where-model-tuning-goes-wrong-61c269402919
